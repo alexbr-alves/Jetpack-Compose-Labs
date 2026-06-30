@@ -1,6 +1,7 @@
 package com.alexbralves.walletmotion.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -183,7 +185,6 @@ private class WalletState(
   var mode by mutableStateOf(WalletMode.Browsing)
   var selectedIndex by mutableIntStateOf(0)
   var draggingIndex by mutableIntStateOf(-1)
-  var detailsDragProgress by mutableStateOf(0f)
 
   fun orderSlot(index: Int): Int = cardOrder.indexOf(index)
 }
@@ -194,19 +195,52 @@ private class WalletInteractionController(
 ) {
   fun enter(metrics: WalletLayoutMetrics) {
     state.cards.forEachIndexed { index, card ->
+      val target = targetFor(index, metrics)
+      val delayMillis = index * 135L
+      card.xJob?.cancel()
+      card.xJob = scope.launch {
+        card.x.snapTo(target.x)
+      }
       card.yJob?.cancel()
       card.yJob = scope.launch {
-        delay(index * 58L)
-        card.x.snapTo(0f)
-        card.y.snapTo(-42f)
-        card.scale.snapTo(0.92f)
-        card.alpha.snapTo(1f)
-        card.y.animateTo(targetFor(index, metrics).y, WalletPhysicsConfig.CardSpring)
+        card.y.snapTo(-metrics.cardHeightPx - metrics.collapsedGapPx * (index + 1))
+        delay(delayMillis)
+        card.y.animateTo(
+          target.y,
+          tween(durationMillis = 720, easing = FastOutSlowInEasing),
+        )
       }
       card.scaleJob?.cancel()
       card.scaleJob = scope.launch {
-        delay(index * 58L)
-        card.scale.animateTo(targetFor(index, metrics).scale, WalletPhysicsConfig.ScaleSpring)
+        card.scale.snapTo(0.90f)
+        delay(delayMillis)
+        card.scale.animateTo(
+          target.scale,
+          tween(durationMillis = 680, easing = FastOutSlowInEasing),
+        )
+      }
+      card.rotationJob?.cancel()
+      card.rotationJob = scope.launch {
+        card.rotationZ.snapTo(target.rotationZ * 1.35f)
+        delay(delayMillis)
+        card.rotationZ.animateTo(
+          target.rotationZ,
+          tween(durationMillis = 680, easing = FastOutSlowInEasing),
+        )
+        card.rotationX.animateTo(target.rotationX, WalletPhysicsConfig.GestureSpring)
+        card.rotationY.animateTo(target.rotationY, WalletPhysicsConfig.GestureSpring)
+      }
+      card.alphaJob?.cancel()
+      card.alphaJob = scope.launch {
+        card.alpha.snapTo(0f)
+        delay(delayMillis)
+        card.alpha.animateTo(target.alpha, tween(durationMillis = 420))
+      }
+      card.elevationJob?.cancel()
+      card.elevationJob = scope.launch {
+        card.elevation.snapTo(WalletPhysicsConfig.RestElevation)
+        delay(delayMillis)
+        card.elevation.animateTo(target.elevation, WalletPhysicsConfig.CardSpring)
       }
     }
     updateSelection()
@@ -268,7 +302,6 @@ private class WalletInteractionController(
     state.cards[index].completedVerticalDrag = false
     state.cards[index].dragDelta = Offset.Zero
     state.cards[index].gestureAxis = GestureAxis.Undecided
-    state.detailsDragProgress = 0f
     state.cards[index].dragStartPosition = Offset(state.cards[index].x.value, state.cards[index].y.value)
     state.cards[index].scaleJob = scope.launch { state.cards[index].scale.animateTo(WalletPhysicsConfig.DragScale, WalletPhysicsConfig.ScaleSpring) }
     state.cards[index].elevationJob = scope.launch { state.cards[index].elevation.animateTo(WalletPhysicsConfig.ActiveElevation, WalletPhysicsConfig.CardSpring) }
@@ -296,16 +329,6 @@ private class WalletInteractionController(
     if (card.gestureAxis == GestureAxis.Undecided && max(absX, absY) > WalletPhysicsConfig.AxisLockThreshold) {
       card.gestureAxis = if (absY > absX * 1.35f) GestureAxis.Vertical else GestureAxis.Horizontal
     }
-    state.detailsDragProgress = if (
-      state.mode == WalletMode.Browsing &&
-      card.gestureAxis == GestureAxis.Vertical &&
-      dragY < 0f
-    ) {
-      (-dragY / verticalThreshold).coerceIn(0f, 1f)
-    } else {
-      0f
-    }
-
     if (card.gestureAxis == GestureAxis.Vertical && absY > verticalThreshold) {
       handleVerticalDrag(dragY, metrics)
       return
@@ -361,7 +384,6 @@ private class WalletInteractionController(
     }
     card.dragDelta = Offset.Zero
     card.gestureAxis = GestureAxis.Undecided
-    state.detailsDragProgress = 0f
   }
 
   fun handleCardTap(index: Int, metrics: WalletLayoutMetrics) {
@@ -374,6 +396,13 @@ private class WalletInteractionController(
   }
 
   fun handleOutsideTap(metrics: WalletLayoutMetrics) {
+  }
+
+  fun dismissDetails(metrics: WalletLayoutMetrics) {
+    if (state.mode == WalletMode.Details) {
+      state.mode = WalletMode.Browsing
+      settle(metrics)
+    }
   }
 
   fun selectNextCard(metrics: WalletLayoutMetrics) {
@@ -405,7 +434,6 @@ private class WalletInteractionController(
     card.dragDelta = Offset.Zero
     card.isDragging = false
     state.draggingIndex = -1
-    state.detailsDragProgress = 0f
 
     state.mode = when {
       deltaY < 0f -> WalletMode.Details
@@ -571,6 +599,7 @@ private data class CardTarget(
 private fun CardDetailsPanel(
   card: CreditCardModel,
   progress: Float,
+  onTopDragDown: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var cardEnabled by remember(card.id) { mutableStateOf(true) }
@@ -630,13 +659,38 @@ private fun CardDetailsPanel(
     Column(
       verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
+      var topDragY by remember { mutableStateOf(0f) }
       Box(
         modifier = Modifier
           .align(Alignment.CenterHorizontally)
-          .size(width = 42.dp, height = 4.dp)
-          .clip(RoundedCornerShape(50))
-          .background(Color.White.copy(alpha = 0.22f)),
-      )
+          .size(width = 108.dp, height = 22.dp)
+          .pointerInput(Unit) {
+            detectVerticalDragGestures(
+              onDragStart = { topDragY = 0f },
+              onVerticalDrag = { change, dragAmount ->
+                if (dragAmount > 0f) {
+                  topDragY += dragAmount
+                  change.consume()
+                }
+              },
+              onDragEnd = {
+                if (topDragY > 44.dp.toPx()) {
+                  onTopDragDown()
+                }
+                topDragY = 0f
+              },
+              onDragCancel = { topDragY = 0f },
+            )
+          },
+        contentAlignment = Alignment.Center,
+      ) {
+        Box(
+          modifier = Modifier
+            .size(width = 42.dp, height = 4.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.22f)),
+        )
+      }
 
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -831,7 +885,22 @@ fun WalletMotionScreen() {
     animationSpec = WalletPhysicsConfig.CardSpring,
     label = "detailsProgress",
   )
-  val panelProgress = max(detailsProgress, walletState.detailsDragProgress)
+  val nonSelectedMaxAlpha = walletState.cards
+    .filterIndexed { index, _ -> index != walletState.selectedIndex }
+    .maxOfOrNull { it.alpha.value } ?: 0f
+  val panelProgress by animateFloatAsState(
+    targetValue = if (
+      walletState.mode == WalletMode.Details &&
+      detailsProgress > 0.98f &&
+      nonSelectedMaxAlpha < 0.04f
+    ) {
+      1f
+    } else {
+      0f
+    },
+    animationSpec = tween(durationMillis = 260),
+    label = "panelProgress",
+  )
 
   BoxWithConstraints(
     modifier = Modifier
@@ -853,7 +922,6 @@ fun WalletMotionScreen() {
 
     LaunchedEffect(Unit) {
       controller.enter(metrics)
-      controller.settle(metrics)
     }
 
     val activeCard = walletState.cards[walletState.selectedIndex]
@@ -961,6 +1029,7 @@ fun WalletMotionScreen() {
     CardDetailsPanel(
       card = walletState.cards[walletState.selectedIndex].model,
       progress = panelProgress,
+      onTopDragDown = { controller.dismissDetails(metrics) },
       modifier = Modifier
         .align(Alignment.BottomCenter)
         .navigationBarsPadding()

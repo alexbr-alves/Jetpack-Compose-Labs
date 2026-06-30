@@ -862,6 +862,8 @@ private fun PhysicalCreditCard(
     animationSpec = tween(260),
     label = "cardGlow",
   )
+  val reflectionShift = (card.rotationY.value / WalletPhysicsConfig.MaxRotationY).coerceIn(-1f, 1f)
+  val reflectionAlpha = (0.10f + abs(reflectionShift) * 0.22f + if (card.isDragging) 0.08f else 0f).coerceIn(0.10f, 0.38f)
 
   Box(
     modifier = Modifier
@@ -959,6 +961,21 @@ private fun PhysicalCreditCard(
           strokeWidth = 1f,
         )
       }
+      val reflectionCenter = size.width * (0.50f + reflectionShift * 0.42f)
+      val reflectionWidth = size.width * 0.42f
+      drawRoundRect(
+        brush = Brush.linearGradient(
+          colors = listOf(
+            Color.Transparent,
+            Color.White.copy(alpha = reflectionAlpha * 0.34f),
+            Color.White.copy(alpha = reflectionAlpha),
+            Color.White.copy(alpha = reflectionAlpha * 0.28f),
+            Color.Transparent,
+          ),
+          start = Offset(reflectionCenter - reflectionWidth, size.height * 1.10f),
+          end = Offset(reflectionCenter + reflectionWidth, -size.height * 0.10f),
+        ),
+      )
     }
 
     Canvas(

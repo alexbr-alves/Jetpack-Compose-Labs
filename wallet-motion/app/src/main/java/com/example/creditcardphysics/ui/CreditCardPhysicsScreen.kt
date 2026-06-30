@@ -2,11 +2,13 @@ package com.example.creditcardphysics.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,9 +87,10 @@ private object WalletPhysicsConfig {
   const val ActiveElevation = 34f
   const val RestElevation = 16f
   const val SwipeThreshold = 118f
-  const val ExpandThreshold = 126f
+  const val ExpandThreshold = 178f
   const val VerticalThresholdRatio = 0.25f
-  const val HorizontalThresholdRatio = 0.18f
+  const val HorizontalThresholdRatio = 0.34f
+  const val AxisLockThreshold = 22f
 
   val CardSpring = spring<Float>(
     dampingRatio = 0.82f,
@@ -149,6 +153,7 @@ private class PhysicalCardState(
   var velocity by mutableStateOf(Offset.Zero)
   var dragDelta by mutableStateOf(Offset.Zero)
   var dragStartPosition by mutableStateOf(Offset.Zero)
+  var gestureAxis by mutableStateOf(GestureAxis.Undecided)
   var xJob: Job? = null
   var yJob: Job? = null
   var scaleJob: Job? = null
@@ -260,6 +265,7 @@ private class WalletInteractionController(
     state.cards[index].completedDrag = false
     state.cards[index].completedVerticalDrag = false
     state.cards[index].dragDelta = Offset.Zero
+    state.cards[index].gestureAxis = GestureAxis.Undecided
     state.cards[index].dragStartPosition = Offset(state.cards[index].x.value, state.cards[index].y.value)
     state.cards[index].scaleJob = scope.launch { state.cards[index].scale.animateTo(WalletPhysicsConfig.DragScale, WalletPhysicsConfig.ScaleSpring) }
     state.cards[index].elevationJob = scope.launch { state.cards[index].elevation.animateTo(WalletPhysicsConfig.ActiveElevation, WalletPhysicsConfig.CardSpring) }
@@ -281,17 +287,14 @@ private class WalletInteractionController(
     val dragY = card.dragDelta.y
     val threshold = metrics.cardWidthPx * WalletPhysicsConfig.HorizontalThresholdRatio
     val verticalThreshold = WalletPhysicsConfig.ExpandThreshold
+    val absX = abs(dragX)
+    val absY = abs(dragY)
 
-    if (abs(dragX) > threshold && abs(dragX) > abs(dragY)) {
-      if (state.mode == WalletMode.Details) {
-        flipCard(index, if (dragX < 0f) -1f else 1f)
-      } else {
-        sendCardToBack(index, metrics, if (dragX < 0f) -1f else 1f)
-      }
-      return
+    if (card.gestureAxis == GestureAxis.Undecided && max(absX, absY) > WalletPhysicsConfig.AxisLockThreshold) {
+      card.gestureAxis = if (absY > absX * 1.35f) GestureAxis.Vertical else GestureAxis.Horizontal
     }
 
-    if (abs(dragY) > verticalThreshold && abs(dragY) > abs(dragX)) {
+    if (card.gestureAxis == GestureAxis.Vertical && absY > verticalThreshold) {
       handleVerticalDrag(dragY, metrics)
       return
     }
@@ -307,8 +310,9 @@ private class WalletInteractionController(
     }
     card.yJob = scope.launch { card.y.snapTo(dragOrigin.y) }
     card.rotationJob = scope.launch {
-      card.rotationZ.snapTo((dragX / metrics.cardWidthPx * 8f + velocity.x / 240f).coerceIn(-WalletPhysicsConfig.MaxRotationZ, WalletPhysicsConfig.MaxRotationZ))
-      card.rotationY.snapTo((dragX / metrics.cardWidthPx * WalletPhysicsConfig.MaxRotationY).coerceIn(-WalletPhysicsConfig.MaxRotationY, WalletPhysicsConfig.MaxRotationY))
+      val horizontalProgress = if (card.gestureAxis == GestureAxis.Vertical) 0f else dragX / metrics.cardWidthPx
+      card.rotationZ.snapTo((horizontalProgress * 8f).coerceIn(-WalletPhysicsConfig.MaxRotationZ, WalletPhysicsConfig.MaxRotationZ))
+      card.rotationY.snapTo((horizontalProgress * WalletPhysicsConfig.MaxRotationY).coerceIn(-WalletPhysicsConfig.MaxRotationY, WalletPhysicsConfig.MaxRotationY))
       card.rotationX.snapTo(0f)
     }
   }
@@ -323,22 +327,28 @@ private class WalletInteractionController(
     card.isDragging = false
     state.draggingIndex = -1
 
+    val absX = abs(card.dragDelta.x)
+    val absY = abs(card.dragDelta.y)
     if (card.completedDrag) {
       card.completedDrag = false
     } else if (card.completedVerticalDrag) {
       card.completedVerticalDrag = false
-    } else if (abs(card.dragDelta.x) > metrics.cardWidthPx * WalletPhysicsConfig.HorizontalThresholdRatio) {
+    } else if (card.gestureAxis == GestureAxis.Horizontal && absX > metrics.cardWidthPx * WalletPhysicsConfig.HorizontalThresholdRatio) {
       if (state.mode == WalletMode.Details) {
         flipCard(index, if (card.dragDelta.x < 0f) -1f else 1f)
       } else {
         sendCardToBack(index, metrics, if (card.dragDelta.x < 0f) -1f else 1f)
       }
-    } else if (abs(card.dragDelta.y) > WalletPhysicsConfig.ExpandThreshold) {
+    } else if (
+      card.gestureAxis == GestureAxis.Vertical &&
+      absY > WalletPhysicsConfig.ExpandThreshold
+    ) {
       handleVerticalDrag(card.dragDelta.y, metrics)
     } else {
       settle(metrics)
     }
     card.dragDelta = Offset.Zero
+    card.gestureAxis = GestureAxis.Undecided
   }
 
   fun handleCardTap(index: Int, metrics: WalletLayoutMetrics) {
@@ -471,7 +481,7 @@ private class WalletInteractionController(
   private fun targetFor(index: Int, metrics: WalletLayoutMetrics): CardTarget {
     val signed = signedSlot(index)
     val selectedY = if (state.mode == WalletMode.Details) {
-      metrics.viewportHeightPx * 0.15f
+      metrics.viewportHeightPx * 0.08f
     } else {
       metrics.viewportHeightPx * 0.50f - metrics.cardHeightPx * 0.50f
     }
@@ -557,20 +567,66 @@ private fun CardDetailsPanel(
   var onlineEnabled by remember(card.id) { mutableStateOf(true) }
   var internationalEnabled by remember(card.id) { mutableStateOf(false) }
   val density = LocalDensity.current
+  val modalPrimary by animateColorAsState(
+    targetValue = card.gradient.getOrElse(1) { card.accent },
+    animationSpec = tween(durationMillis = 560),
+    label = "modalPrimary",
+  )
+  val modalSecondary by animateColorAsState(
+    targetValue = card.gradient.last(),
+    animationSpec = tween(durationMillis = 560),
+    label = "modalSecondary",
+  )
+  val modalAccent by animateColorAsState(
+    targetValue = card.accent,
+    animationSpec = tween(durationMillis = 560),
+    label = "modalAccent",
+  )
 
   Box(
     modifier = modifier
+      .fillMaxWidth()
       .graphicsLayer {
         alpha = progress
-        translationY = with(density) { (1f - progress) * 220.dp.toPx() }
+        translationY = with(density) { (1f - progress) * 180.dp.toPx() }
+        scaleX = 0.96f + progress * 0.04f
+        scaleY = 0.96f + progress * 0.04f
       }
-      .clip(RoundedCornerShape(28.dp))
-      .background(Color(0xFF0F1420).copy(alpha = 0.92f))
-      .padding(horizontal = 22.dp, vertical = 18.dp),
+      .clip(RoundedCornerShape(30.dp))
+      .background(
+        Brush.verticalGradient(
+          listOf(
+            modalPrimary.copy(alpha = 0.16f),
+            Color(0xFF0D1119).copy(alpha = 0.92f),
+            modalSecondary.copy(alpha = 0.12f),
+            Color(0xFF07090E).copy(alpha = 0.96f),
+          ),
+        ),
+      )
+      .border(
+        width = 1.dp,
+        brush = Brush.verticalGradient(
+          listOf(
+            Color.White.copy(alpha = 0.24f),
+            modalAccent.copy(alpha = 0.18f),
+            Color.White.copy(alpha = 0.06f),
+          ),
+        ),
+        shape = RoundedCornerShape(30.dp),
+      )
+      .padding(horizontal = 20.dp, vertical = 14.dp),
   ) {
     Column(
-      verticalArrangement = Arrangement.spacedBy(14.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+      Box(
+        modifier = Modifier
+          .align(Alignment.CenterHorizontally)
+          .size(width = 42.dp, height = 4.dp)
+          .clip(RoundedCornerShape(50))
+          .background(Color.White.copy(alpha = 0.22f)),
+      )
+
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -587,18 +643,32 @@ private fun CardDetailsPanel(
           Text(
             text = card.maskedNumber,
             color = Color.White,
-            fontSize = 22.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.sp,
           )
         }
-        Text(
-          text = if (cardEnabled) "ATIVO" else "BLOQUEADO",
-          color = if (cardEnabled) card.accent else Color(0xFFFF8A8A),
-          fontSize = 12.sp,
-          fontWeight = FontWeight.Bold,
-          letterSpacing = 0.sp,
-        )
+        Box(
+          modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+              if (cardEnabled) modalAccent.copy(alpha = 0.16f) else Color(0xFFFF8A8A).copy(alpha = 0.14f),
+            )
+            .border(
+              width = 1.dp,
+              color = if (cardEnabled) modalAccent.copy(alpha = 0.34f) else Color(0xFFFF8A8A).copy(alpha = 0.30f),
+              shape = RoundedCornerShape(50),
+            )
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        ) {
+          Text(
+            text = if (cardEnabled) "ATIVO" else "BLOQUEADO",
+            color = if (cardEnabled) modalAccent else Color(0xFFFF8A8A),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.sp,
+          )
+        }
       }
 
       Row(
@@ -620,24 +690,28 @@ private fun CardDetailsPanel(
       CardToggleRow(
         title = "Cartão ativo",
         subtitle = "Bloquear ou liberar novas compras",
+        accent = modalAccent,
         checked = cardEnabled,
         onCheckedChange = { cardEnabled = it },
       )
       CardToggleRow(
         title = "Pagamento por aproximação",
         subtitle = "Usar NFC em maquininhas compatíveis",
+        accent = modalAccent,
         checked = contactlessEnabled,
         onCheckedChange = { contactlessEnabled = it },
       )
       CardToggleRow(
         title = "Compras online",
         subtitle = "Autorizar pagamentos em apps e sites",
+        accent = modalAccent,
         checked = onlineEnabled,
         onCheckedChange = { onlineEnabled = it },
       )
       CardToggleRow(
         title = "Uso internacional",
         subtitle = "Liberar compras fora do país",
+        accent = modalAccent,
         checked = internationalEnabled,
         onCheckedChange = { internationalEnabled = it },
       )
@@ -654,8 +728,13 @@ private fun CardInfoItem(
   Column(
     modifier = modifier
       .clip(RoundedCornerShape(18.dp))
-      .background(Color.White.copy(alpha = 0.07f))
-      .padding(horizontal = 14.dp, vertical = 12.dp),
+      .background(Color.White.copy(alpha = 0.075f))
+      .border(
+        width = 1.dp,
+        color = Color.White.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(18.dp),
+      )
+      .padding(horizontal = 14.dp, vertical = 13.dp),
   ) {
     Text(
       text = label,
@@ -679,11 +758,21 @@ private fun CardInfoItem(
 private fun CardToggleRow(
   title: String,
   subtitle: String,
+  accent: Color,
   checked: Boolean,
   onCheckedChange: (Boolean) -> Unit,
 ) {
   Row(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(18.dp))
+      .background(Color.White.copy(alpha = if (checked) 0.075f else 0.045f))
+      .border(
+        width = 1.dp,
+        color = if (checked) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.06f),
+        shape = RoundedCornerShape(18.dp),
+      )
+      .padding(horizontal = 14.dp, vertical = 11.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -709,6 +798,13 @@ private fun CardToggleRow(
     Switch(
       checked = checked,
       onCheckedChange = onCheckedChange,
+      colors = SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = accent.copy(alpha = 0.72f),
+        uncheckedThumbColor = Color.White.copy(alpha = 0.78f),
+        uncheckedTrackColor = Color.White.copy(alpha = 0.16f),
+        uncheckedBorderColor = Color.White.copy(alpha = 0.10f),
+      ),
     )
   }
 }
@@ -719,11 +815,6 @@ fun CreditCardPhysicsScreen() {
   val density = LocalDensity.current
   val walletState = remember { WalletState(creditCards) }
   val controller = remember(walletState) { WalletInteractionController(walletState, scope) }
-  val expandedGlow by animateFloatAsState(
-    targetValue = if (walletState.mode == WalletMode.Details) 1f else 0f,
-    animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
-    label = "walletGlow",
-  )
   val detailsProgress by animateFloatAsState(
     targetValue = if (walletState.mode == WalletMode.Details) 1f else 0f,
     animationSpec = WalletPhysicsConfig.CardSpring,
@@ -733,13 +824,7 @@ fun CreditCardPhysicsScreen() {
   BoxWithConstraints(
     modifier = Modifier
       .fillMaxSize()
-      .background(
-        Brush.verticalGradient(
-          0f to Color(0xFF05060A),
-          0.48f to Color(0xFF10131C),
-          1f to Color(0xFF050507),
-        ),
-      ),
+      .background(Color(0xFF08080A)),
   ) {
     val cardWidth = 324.dp
     val cardHeight = 204.dp
@@ -759,16 +844,90 @@ fun CreditCardPhysicsScreen() {
       controller.settle(metrics)
     }
 
+    val activeCard = walletState.cards[walletState.selectedIndex]
+    val haloPrimary by animateColorAsState(
+      targetValue = activeCard.model.gradient.getOrElse(1) { activeCard.model.accent },
+      animationSpec = tween(durationMillis = 560),
+      label = "haloPrimary",
+    )
+    val haloSecondary by animateColorAsState(
+      targetValue = activeCard.model.gradient.last(),
+      animationSpec = tween(durationMillis = 560),
+      label = "haloSecondary",
+    )
+    val haloAccent by animateColorAsState(
+      targetValue = activeCard.model.accent,
+      animationSpec = tween(durationMillis = 560),
+      label = "haloAccent",
+    )
+    val haloTargetX = with(density) { maxWidth.toPx() * 0.50f } + activeCard.x.value + activeCard.rotationY.value * 2.6f
+    val haloTargetY = activeCard.y.value + metrics.cardHeightPx * 0.54f + activeCard.rotationX.value * 3.2f
+    val haloX by animateFloatAsState(
+      targetValue = haloTargetX,
+      animationSpec = tween(durationMillis = 520),
+      label = "haloX",
+    )
+    val haloY by animateFloatAsState(
+      targetValue = haloTargetY,
+      animationSpec = tween(durationMillis = 520),
+      label = "haloY",
+    )
+
     Canvas(modifier = Modifier.fillMaxSize()) {
-      drawCircle(
-        color = Color(0xFF8B5CF6).copy(alpha = 0.10f + expandedGlow * 0.05f),
-        radius = size.width * 0.58f,
-        center = Offset(size.width * 0.50f, size.height * 0.34f),
+      drawRect(
+        brush = Brush.linearGradient(
+          colors = listOf(
+            haloPrimary.copy(alpha = 0.10f),
+            Color.Transparent,
+            haloSecondary.copy(alpha = 0.08f),
+          ),
+          start = Offset(size.width * 0.02f, size.height * 0.08f),
+          end = Offset(size.width * 0.98f, size.height * 0.92f),
+        ),
       )
-      drawCircle(
-        color = Color(0xFF14B8A6).copy(alpha = 0.07f),
-        radius = size.width * 0.44f,
-        center = Offset(size.width * 0.16f, size.height * 0.86f),
+      drawRect(
+        brush = Brush.linearGradient(
+          colors = listOf(
+            Color.Transparent,
+            haloAccent.copy(alpha = 0.07f),
+            Color.Transparent,
+          ),
+          start = Offset(size.width * 0.90f, size.height * 0.12f),
+          end = Offset(size.width * 0.10f, size.height * 0.82f),
+        ),
+      )
+      drawRect(
+        brush = Brush.radialGradient(
+          colors = listOf(
+            haloPrimary.copy(alpha = 0.34f),
+            haloSecondary.copy(alpha = 0.17f),
+            Color.Transparent,
+          ),
+          center = Offset(haloX, haloY),
+          radius = size.minDimension * 0.34f,
+        ),
+      )
+      drawRect(
+        brush = Brush.radialGradient(
+          colors = listOf(
+            haloAccent.copy(alpha = 0.16f),
+            haloPrimary.copy(alpha = 0.07f),
+            Color.Transparent,
+          ),
+          center = Offset(haloX + size.width * 0.08f, haloY - size.height * 0.035f),
+          radius = size.minDimension * 0.24f,
+        ),
+      )
+      drawRect(
+        brush = Brush.linearGradient(
+          colors = listOf(
+            Color.Transparent,
+            Color.White.copy(alpha = 0.035f),
+            Color.Transparent,
+          ),
+          start = Offset(haloX - size.width * 0.32f, haloY + size.height * 0.18f),
+          end = Offset(haloX + size.width * 0.32f, haloY - size.height * 0.18f),
+        ),
       )
     }
 
@@ -792,7 +951,7 @@ fun CreditCardPhysicsScreen() {
       progress = detailsProgress,
       modifier = Modifier
         .align(Alignment.BottomCenter)
-        .padding(horizontal = 24.dp, vertical = 34.dp),
+        .padding(horizontal = 24.dp, vertical = 18.dp),
     )
   }
 }

@@ -4,10 +4,10 @@ plugins {
 }
 
 android {
-    namespace = "com.example.creditcardphysics"
+    namespace = "com.alexbralves.walletmotion"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.creditcardphysics"
+        applicationId = "com.alexbralves.walletmotion"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

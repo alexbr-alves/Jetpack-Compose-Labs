@@ -1,4 +1,4 @@
-package com.example.creditcardphysics.theme
+package com.alexbralves.walletmotion.theme
 
 import androidx.compose.ui.graphics.Color
 

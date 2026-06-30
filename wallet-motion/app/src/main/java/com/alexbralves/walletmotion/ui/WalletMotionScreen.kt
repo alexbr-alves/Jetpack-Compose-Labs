@@ -1,4 +1,4 @@
-package com.example.creditcardphysics.ui
+package com.alexbralves.walletmotion.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -182,6 +183,7 @@ private class WalletState(
   var mode by mutableStateOf(WalletMode.Browsing)
   var selectedIndex by mutableIntStateOf(0)
   var draggingIndex by mutableIntStateOf(-1)
+  var detailsDragProgress by mutableStateOf(0f)
 
   fun orderSlot(index: Int): Int = cardOrder.indexOf(index)
 }
@@ -266,6 +268,7 @@ private class WalletInteractionController(
     state.cards[index].completedVerticalDrag = false
     state.cards[index].dragDelta = Offset.Zero
     state.cards[index].gestureAxis = GestureAxis.Undecided
+    state.detailsDragProgress = 0f
     state.cards[index].dragStartPosition = Offset(state.cards[index].x.value, state.cards[index].y.value)
     state.cards[index].scaleJob = scope.launch { state.cards[index].scale.animateTo(WalletPhysicsConfig.DragScale, WalletPhysicsConfig.ScaleSpring) }
     state.cards[index].elevationJob = scope.launch { state.cards[index].elevation.animateTo(WalletPhysicsConfig.ActiveElevation, WalletPhysicsConfig.CardSpring) }
@@ -292,6 +295,15 @@ private class WalletInteractionController(
 
     if (card.gestureAxis == GestureAxis.Undecided && max(absX, absY) > WalletPhysicsConfig.AxisLockThreshold) {
       card.gestureAxis = if (absY > absX * 1.35f) GestureAxis.Vertical else GestureAxis.Horizontal
+    }
+    state.detailsDragProgress = if (
+      state.mode == WalletMode.Browsing &&
+      card.gestureAxis == GestureAxis.Vertical &&
+      dragY < 0f
+    ) {
+      (-dragY / verticalThreshold).coerceIn(0f, 1f)
+    } else {
+      0f
     }
 
     if (card.gestureAxis == GestureAxis.Vertical && absY > verticalThreshold) {
@@ -349,21 +361,19 @@ private class WalletInteractionController(
     }
     card.dragDelta = Offset.Zero
     card.gestureAxis = GestureAxis.Undecided
+    state.detailsDragProgress = 0f
   }
 
   fun handleCardTap(index: Int, metrics: WalletLayoutMetrics) {
     if (index != state.cardOrder.first()) return
+    if (state.mode == WalletMode.Details) return
 
     state.selectedIndex = index
-    state.mode = if (state.mode == WalletMode.Details) WalletMode.Browsing else WalletMode.Details
+    state.mode = WalletMode.Details
     settle(metrics)
   }
 
   fun handleOutsideTap(metrics: WalletLayoutMetrics) {
-    if (state.mode == WalletMode.Details) {
-      state.mode = WalletMode.Browsing
-      settle(metrics)
-    }
   }
 
   fun selectNextCard(metrics: WalletLayoutMetrics) {
@@ -395,6 +405,7 @@ private class WalletInteractionController(
     card.dragDelta = Offset.Zero
     card.isDragging = false
     state.draggingIndex = -1
+    state.detailsDragProgress = 0f
 
     state.mode = when {
       deltaY < 0f -> WalletMode.Details
@@ -614,10 +625,10 @@ private fun CardDetailsPanel(
         ),
         shape = RoundedCornerShape(30.dp),
       )
-      .padding(horizontal = 20.dp, vertical = 14.dp),
+      .padding(horizontal = 18.dp, vertical = 11.dp),
   ) {
     Column(
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+      verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
       Box(
         modifier = Modifier
@@ -734,7 +745,7 @@ private fun CardInfoItem(
         color = Color.White.copy(alpha = 0.08f),
         shape = RoundedCornerShape(18.dp),
       )
-      .padding(horizontal = 14.dp, vertical = 13.dp),
+      .padding(horizontal = 13.dp, vertical = 10.dp),
   ) {
     Text(
       text = label,
@@ -772,7 +783,7 @@ private fun CardToggleRow(
         color = if (checked) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.06f),
         shape = RoundedCornerShape(18.dp),
       )
-      .padding(horizontal = 14.dp, vertical = 11.dp),
+      .padding(horizontal = 13.dp, vertical = 8.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -810,7 +821,7 @@ private fun CardToggleRow(
 }
 
 @Composable
-fun CreditCardPhysicsScreen() {
+fun WalletMotionScreen() {
   val scope = rememberCoroutineScope()
   val density = LocalDensity.current
   val walletState = remember { WalletState(creditCards) }
@@ -820,6 +831,7 @@ fun CreditCardPhysicsScreen() {
     animationSpec = WalletPhysicsConfig.CardSpring,
     label = "detailsProgress",
   )
+  val panelProgress = max(detailsProgress, walletState.detailsDragProgress)
 
   BoxWithConstraints(
     modifier = Modifier
@@ -948,10 +960,11 @@ fun CreditCardPhysicsScreen() {
 
     CardDetailsPanel(
       card = walletState.cards[walletState.selectedIndex].model,
-      progress = detailsProgress,
+      progress = panelProgress,
       modifier = Modifier
         .align(Alignment.BottomCenter)
-        .padding(horizontal = 24.dp, vertical = 18.dp),
+        .navigationBarsPadding()
+        .padding(horizontal = 24.dp, vertical = 12.dp),
     )
   }
 }
@@ -1258,16 +1271,6 @@ private fun CardBackFace(
       }
     }
 
-    Text(
-      text = card.bank,
-      color = Color.White.copy(alpha = 0.88f),
-      fontSize = 14.sp,
-      fontWeight = FontWeight.Bold,
-      letterSpacing = 0.sp,
-      modifier = Modifier
-        .align(Alignment.TopStart)
-        .padding(start = 24.dp, top = 23.dp),
-    )
     Box(
       modifier = Modifier
         .align(Alignment.CenterEnd)
@@ -1293,24 +1296,14 @@ private fun CardBackFace(
         .align(Alignment.BottomStart)
         .padding(start = 24.dp, bottom = 24.dp),
     )
-    Text(
-      text = "ASSINATURA AUTORIZADA",
-      color = Color.White.copy(alpha = 0.42f),
-      fontSize = 10.sp,
-      fontWeight = FontWeight.Bold,
-      letterSpacing = 0.sp,
-      modifier = Modifier
-        .align(Alignment.BottomEnd)
-        .padding(end = 24.dp, bottom = 24.dp),
-    )
   }
 }
 
 private val creditCards = listOf(
   CreditCardModel(
     id = 0,
-    bank = "AURORA",
-    holder = "ANDY RUBIN",
+    bank = "Compose Bank",
+    holder = "COMPOSE USER",
     maskedNumber = "**** 4829",
     balance = "$8,420",
     badge = "PLATINUM",
@@ -1319,8 +1312,8 @@ private val creditCards = listOf(
   ),
   CreditCardModel(
     id = 1,
-    bank = "NOVA",
-    holder = "ANDY RUBIN",
+    bank = "Jetpack Bank",
+    holder = "COMPOSE USER",
     maskedNumber = "**** 7304",
     balance = "$2,180",
     badge = "BLACK",
@@ -1329,8 +1322,8 @@ private val creditCards = listOf(
   ),
   CreditCardModel(
     id = 2,
-    bank = "WISELY",
-    holder = "ANDY RUBIN",
+    bank = "Kotlin Trust",
+    holder = "COMPOSE USER",
     maskedNumber = "**** 1198",
     balance = "$5,960",
     badge = "WORLD",
@@ -1339,8 +1332,8 @@ private val creditCards = listOf(
   ),
   CreditCardModel(
     id = 3,
-    bank = "EMBER",
-    holder = "ANDY RUBIN",
+    bank = "Material Bank",
+    holder = "COMPOSE USER",
     maskedNumber = "**** 6042",
     balance = "$1,740",
     badge = "GOLD",
@@ -1349,8 +1342,8 @@ private val creditCards = listOf(
   ),
   CreditCardModel(
     id = 4,
-    bank = "VECTOR",
-    holder = "ANDY RUBIN",
+    bank = "Pixel Bank",
+    holder = "COMPOSE USER",
     maskedNumber = "**** 9081",
     balance = "$12,300",
     badge = "SIGNATURE",

@@ -1,4 +1,4 @@
-package com.example.creditcardphysics.theme
+package com.alexbralves.walletmotion.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

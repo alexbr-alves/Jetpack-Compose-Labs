@@ -1,11 +1,11 @@
-package com.example.creditcardphysics
+package com.alexbralves.walletmotion
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.creditcardphysics.theme.CreditCardPhysicsTheme
-import com.example.creditcardphysics.ui.CreditCardPhysicsScreen
+import com.alexbralves.walletmotion.theme.WalletMotionTheme
+import com.alexbralves.walletmotion.ui.WalletMotionScreen
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -13,8 +13,8 @@ class MainActivity : ComponentActivity() {
 
     enableEdgeToEdge()
     setContent {
-      CreditCardPhysicsTheme(dynamicColor = false) {
-        CreditCardPhysicsScreen()
+      WalletMotionTheme(dynamicColor = false) {
+        WalletMotionScreen()
       }
     }
   }

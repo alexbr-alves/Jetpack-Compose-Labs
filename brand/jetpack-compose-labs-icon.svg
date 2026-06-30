@@ -2,14 +2,14 @@
   <rect width="512" height="512" rx="116" fill="#08080A"/>
   <path d="M104 112C168 68 264 58 330 98C410 146 432 250 386 326C334 412 206 432 132 354C72 290 52 170 104 112Z" fill="url(#a)" opacity="0.84"/>
   <path d="M394 142C462 208 452 344 362 400C286 448 174 418 128 334C88 260 118 158 196 126C258 100 340 90 394 142Z" fill="url(#b)" opacity="0.64"/>
-  <path d="M164 176L256 122L348 176V286L256 340L164 286V176Z" fill="#0B0D13" fill-opacity="0.62"/>
-  <path d="M164 176L256 122L348 176V286L256 340L164 286V176Z" stroke="white" stroke-opacity="0.92" stroke-width="22" stroke-linejoin="round"/>
-  <path d="M164 176L256 230L348 176" stroke="white" stroke-opacity="0.86" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M256 230V340" stroke="white" stroke-opacity="0.84" stroke-width="22" stroke-linecap="round"/>
-  <path d="M152 386H360" stroke="url(#c)" stroke-width="26" stroke-linecap="round"/>
-  <circle cx="176" cy="386" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="256" cy="386" r="9" fill="white" fill-opacity="0.9"/>
-  <circle cx="336" cy="386" r="9" fill="white" fill-opacity="0.9"/>
+  <path d="M188 188L256 148L324 188V270L256 310L188 270V188Z" fill="#0B0D13" fill-opacity="0.62"/>
+  <path d="M188 188L256 148L324 188V270L256 310L188 270V188Z" stroke="white" stroke-opacity="0.92" stroke-width="19" stroke-linejoin="round"/>
+  <path d="M188 188L256 228L324 188" stroke="white" stroke-opacity="0.86" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 228V310" stroke="white" stroke-opacity="0.84" stroke-width="19" stroke-linecap="round"/>
+  <path d="M184 366H328" stroke="url(#c)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="204" cy="366" r="7" fill="white" fill-opacity="0.9"/>
+  <circle cx="256" cy="366" r="7" fill="white" fill-opacity="0.9"/>
+  <circle cx="308" cy="366" r="7" fill="white" fill-opacity="0.9"/>
   <defs>
     <radialGradient id="a" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(168 142) rotate(46) scale(270)">
       <stop stop-color="#A78BFA"/>
@@ -21,7 +21,7 @@
       <stop offset="0.45" stop-color="#38BDF8" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#08080A" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="c" x1="152" y1="386" x2="360" y2="386" gradientUnits="userSpaceOnUse">
+    <linearGradient id="c" x1="184" y1="366" x2="328" y2="366" gradientUnits="userSpaceOnUse">
       <stop stop-color="#8B5CF6"/>
       <stop offset="0.5" stop-color="#38BDF8"/>
       <stop offset="1" stop-color="#14B8A6"/>

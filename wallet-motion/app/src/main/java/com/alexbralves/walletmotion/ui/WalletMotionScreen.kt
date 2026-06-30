@@ -1372,7 +1372,7 @@ private val creditCards = listOf(
   CreditCardModel(
     id = 0,
     bank = "Compose Bank",
-    holder = "COMPOSE USER",
+    holder = "ANDY RUBIN",
     maskedNumber = "**** 4829",
     balance = "$8,420",
     badge = "PLATINUM",
@@ -1382,7 +1382,7 @@ private val creditCards = listOf(
   CreditCardModel(
     id = 1,
     bank = "Jetpack Bank",
-    holder = "COMPOSE USER",
+    holder = "ANDY RUBIN",
     maskedNumber = "**** 7304",
     balance = "$2,180",
     badge = "BLACK",
@@ -1392,7 +1392,7 @@ private val creditCards = listOf(
   CreditCardModel(
     id = 2,
     bank = "Kotlin Trust",
-    holder = "COMPOSE USER",
+    holder = "ANDY RUBIN",
     maskedNumber = "**** 1198",
     balance = "$5,960",
     badge = "WORLD",
@@ -1402,7 +1402,7 @@ private val creditCards = listOf(
   CreditCardModel(
     id = 3,
     bank = "Material Bank",
-    holder = "COMPOSE USER",
+    holder = "ANDY RUBIN",
     maskedNumber = "**** 6042",
     balance = "$1,740",
     badge = "GOLD",
@@ -1412,7 +1412,7 @@ private val creditCards = listOf(
   CreditCardModel(
     id = 4,
     bank = "Pixel Bank",
-    holder = "COMPOSE USER",
+    holder = "ANDY RUBIN",
     maskedNumber = "**** 9081",
     balance = "$12,300",
     badge = "SIGNATURE",

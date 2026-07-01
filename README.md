@@ -20,7 +20,7 @@ This repository is a playground where ideas become reusable interactions. Each p
 
 | Project | Description | Status |
 |---------|-------------|--------|
-| 🚀 wallet-motion | Premium wallet interactions, gestures and animations | ✅ In Progress |
+| 🚀 wallet-motion | Premium wallet interactions, gestures and animations | ✅ Completed |
 | ⏳ More coming soon... | Motion, Graphics, Canvas, Shaders and more | 🚧 |
 
 ---

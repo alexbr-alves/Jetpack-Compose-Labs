@@ -927,17 +927,17 @@ fun WalletMotionScreen() {
     val activeCard = walletState.cards[walletState.selectedIndex]
     val haloPrimary by animateColorAsState(
       targetValue = activeCard.model.gradient.getOrElse(1) { activeCard.model.accent },
-      animationSpec = tween(durationMillis = 560),
+      animationSpec = tween(durationMillis = 640),
       label = "haloPrimary",
     )
     val haloSecondary by animateColorAsState(
       targetValue = activeCard.model.gradient.last(),
-      animationSpec = tween(durationMillis = 560),
+      animationSpec = tween(durationMillis = 640),
       label = "haloSecondary",
     )
     val haloAccent by animateColorAsState(
       targetValue = activeCard.model.accent,
-      animationSpec = tween(durationMillis = 560),
+      animationSpec = tween(durationMillis = 640),
       label = "haloAccent",
     )
     val haloTargetX = with(density) { maxWidth.toPx() * 0.50f } + activeCard.x.value + activeCard.rotationY.value * 2.6f
@@ -957,9 +957,9 @@ fun WalletMotionScreen() {
       drawRect(
         brush = Brush.linearGradient(
           colors = listOf(
-            haloPrimary.copy(alpha = 0.10f),
-            Color.Transparent,
+            haloPrimary.copy(alpha = 0.20f),
             haloSecondary.copy(alpha = 0.08f),
+            haloAccent.copy(alpha = 0.16f),
           ),
           start = Offset(size.width * 0.02f, size.height * 0.08f),
           end = Offset(size.width * 0.98f, size.height * 0.92f),
@@ -969,7 +969,8 @@ fun WalletMotionScreen() {
         brush = Brush.linearGradient(
           colors = listOf(
             Color.Transparent,
-            haloAccent.copy(alpha = 0.07f),
+            haloAccent.copy(alpha = 0.16f),
+            haloPrimary.copy(alpha = 0.07f),
             Color.Transparent,
           ),
           start = Offset(size.width * 0.90f, size.height * 0.12f),
@@ -979,23 +980,24 @@ fun WalletMotionScreen() {
       drawRect(
         brush = Brush.radialGradient(
           colors = listOf(
-            haloPrimary.copy(alpha = 0.34f),
-            haloSecondary.copy(alpha = 0.17f),
+            Color.White.copy(alpha = 0.08f),
+            haloPrimary.copy(alpha = 0.48f),
+            haloSecondary.copy(alpha = 0.24f),
             Color.Transparent,
           ),
           center = Offset(haloX, haloY),
-          radius = size.minDimension * 0.34f,
+          radius = size.minDimension * 0.46f,
         ),
       )
       drawRect(
         brush = Brush.radialGradient(
           colors = listOf(
-            haloAccent.copy(alpha = 0.16f),
-            haloPrimary.copy(alpha = 0.07f),
+            haloAccent.copy(alpha = 0.26f),
+            haloPrimary.copy(alpha = 0.12f),
             Color.Transparent,
           ),
           center = Offset(haloX + size.width * 0.08f, haloY - size.height * 0.035f),
-          radius = size.minDimension * 0.24f,
+          radius = size.minDimension * 0.32f,
         ),
       )
       drawRect(

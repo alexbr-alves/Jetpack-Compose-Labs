@@ -1,5 +1,10 @@
 package com.alexbralves.boardingpassmotion.ui.screen
 
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -38,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -50,10 +56,12 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.alexbralves.boardingpassmotion.data.TicketRealtimeDataSource
 import com.alexbralves.boardingpassmotion.model.BoardingPass
 import com.alexbralves.boardingpassmotion.theme.Gold
 import com.alexbralves.boardingpassmotion.theme.Ink
@@ -62,13 +70,23 @@ import com.alexbralves.boardingpassmotion.theme.SkyAccent
 import com.alexbralves.boardingpassmotion.theme.SoftText
 import com.alexbralves.boardingpassmotion.theme.Ticket
 import com.alexbralves.boardingpassmotion.theme.TicketMuted
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+private enum class TicketValidationState {
+  WaitingForScan,
+  Scanning,
+  Boarded,
+}
+
 @Composable
 fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
+  val context = LocalContext.current
   val pass = remember { BoardingPass() }
+  val realtime = remember { TicketRealtimeDataSource() }
   val secondFold = remember { Animatable(0f) }
   val thirdFold = remember { Animatable(0f) }
   val cardFlip = remember { Animatable(0f) }
@@ -76,6 +94,8 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
   val finishBounce = remember { Animatable(0f) }
   var open by remember { mutableStateOf(false) }
   var running by remember { mutableStateOf(false) }
+  var validationState by remember { mutableStateOf(TicketValidationState.WaitingForScan) }
+  var lastScanCount by remember { mutableStateOf<Int?>(null) }
   val scope = rememberCoroutineScope()
 
   suspend fun expandTicket() {
@@ -102,6 +122,8 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
     thirdFold.animateTo(0f, slowPaperTween())
     delay(105)
     secondFold.animateTo(0f, slowPaperTween())
+    validationState = TicketValidationState.WaitingForScan
+    lastScanCount = null
     running = false
   }
 
@@ -115,6 +137,35 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
     if (autoExpand) {
       delay(900)
       expandTicket()
+    }
+  }
+
+  LaunchedEffect(open, cardFlip.value > 0.98f) {
+    if (!open || cardFlip.value <= 0.98f) return@LaunchedEffect
+
+    realtime.scanCountChanges(pass.code).collect { scanCount ->
+      val previous = lastScanCount
+      lastScanCount = scanCount
+      if (previous != null && scanCount > previous && validationState == TicketValidationState.WaitingForScan) {
+        vibrateShort(context)
+        validationState = TicketValidationState.Scanning
+      }
+    }
+  }
+
+  LaunchedEffect(validationState) {
+    if (validationState == TicketValidationState.Scanning) {
+      delay(700)
+      validationState = TicketValidationState.Boarded
+    }
+  }
+
+  LaunchedEffect(validationState) {
+    if (validationState == TicketValidationState.Boarded) {
+      delay(2_000)
+      if (!running && open) {
+        foldTicket()
+      }
     }
   }
 
@@ -147,6 +198,7 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
           pressProgress = press.value,
           bounceProgress = finishBounce.value,
           flipProgress = cardFlip.value,
+          validationState = validationState,
           modifier =
             Modifier.clickable(
               interactionSource = remember { MutableInteractionSource() },
@@ -165,7 +217,13 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
             showingQr = cardFlip.value > 0.5f,
             onClick = {
               if (!running) {
-                scope.launch { flipQrSide() }
+                scope.launch {
+                  if (cardFlip.value < 0.5f) {
+                    validationState = TicketValidationState.WaitingForScan
+                    lastScanCount = null
+                  }
+                  flipQrSide()
+                }
               }
             },
           )
@@ -183,6 +241,7 @@ private fun FoldingBoardingPass(
   pressProgress: Float,
   bounceProgress: Float,
   flipProgress: Float,
+  validationState: TicketValidationState,
   modifier: Modifier = Modifier,
 ) {
   val panelHeight = 168.dp
@@ -293,6 +352,7 @@ private fun FoldingBoardingPass(
     }
     BoardingPassBackSide(
       pass = pass,
+      validationState = validationState,
       modifier =
         Modifier
           .fillMaxSize()
@@ -333,6 +393,7 @@ private fun QrSideButton(showingQr: Boolean, onClick: () -> Unit) {
 @Composable
 private fun BoardingPassBackSide(
   pass: BoardingPass,
+  validationState: TicketValidationState,
   modifier: Modifier = Modifier,
   corner: androidx.compose.ui.unit.Dp,
 ) {
@@ -365,13 +426,13 @@ private fun BoardingPassBackSide(
           pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
         )
       }
-      Text(
-        text = "SHOW YOUR PASSPORT & QR CODE\nAT THE BOARDING GATE",
-        style = MaterialTheme.typography.labelSmall,
-        color = Ink,
-        fontWeight = FontWeight.Bold,
-      )
-      AnimatedQRCode(modifier = Modifier.size(190.dp), cells = 11)
+      ValidationStatus(state = validationState)
+      Box(contentAlignment = Alignment.Center) {
+        AnimatedQRCode(content = pass.code, modifier = Modifier.size(190.dp))
+        if (validationState == TicketValidationState.Scanning) {
+          QrScanBand(Modifier.size(190.dp))
+        }
+      }
     }
     Row(
       modifier =
@@ -392,6 +453,95 @@ private fun BoardingPassBackSide(
         Text(pass.seat, style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.Black)
       }
     }
+  }
+}
+
+@Composable
+private fun ValidationStatus(state: TicketValidationState) {
+  val label =
+    when (state) {
+      TicketValidationState.WaitingForScan -> "Waiting for validation..."
+      TicketValidationState.Scanning -> "Reading boarding pass..."
+      TicketValidationState.Boarded -> "Boarding Approved"
+    }
+  val approved = state == TicketValidationState.Boarded
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    ValidationIcon(state)
+    Text(
+      text = label,
+      style = MaterialTheme.typography.labelMedium,
+      color = if (approved) Color(0xFF0B8F5A) else Ink,
+      fontWeight = FontWeight.Black,
+    )
+  }
+}
+
+@Composable
+private fun ValidationIcon(state: TicketValidationState) {
+  val color =
+    when (state) {
+      TicketValidationState.WaitingForScan -> Color(0xFF0759B4)
+      TicketValidationState.Scanning -> Gold
+      TicketValidationState.Boarded -> Color(0xFF0B8F5A)
+    }
+  Canvas(
+    modifier =
+      Modifier
+        .size(22.dp)
+        .clip(CircleShape)
+        .background(color.copy(alpha = 0.12f))
+        .border(1.dp, color.copy(alpha = 0.35f), CircleShape)
+        .padding(5.dp),
+  ) {
+    when (state) {
+      TicketValidationState.WaitingForScan -> drawCircle(color, radius = size.minDimension * 0.26f)
+      TicketValidationState.Scanning -> {
+        drawLine(color, Offset(size.width * 0.15f, size.height * 0.5f), Offset(size.width * 0.85f, size.height * 0.5f), strokeWidth = 2.4f)
+        drawLine(color, Offset(size.width * 0.5f, size.height * 0.15f), Offset(size.width * 0.5f, size.height * 0.85f), strokeWidth = 2.4f)
+      }
+      TicketValidationState.Boarded -> {
+        drawLine(color, Offset(size.width * 0.12f, size.height * 0.54f), Offset(size.width * 0.38f, size.height * 0.78f), strokeWidth = 3.4f)
+        drawLine(color, Offset(size.width * 0.38f, size.height * 0.78f), Offset(size.width * 0.88f, size.height * 0.22f), strokeWidth = 3.4f)
+      }
+    }
+  }
+}
+
+@Composable
+private fun QrScanBand(modifier: Modifier = Modifier) {
+  val progress = remember { Animatable(0f) }
+  LaunchedEffect(Unit) {
+    progress.snapTo(0f)
+    progress.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+  }
+  Canvas(
+    modifier =
+      modifier
+        .clip(RoundedCornerShape(16.dp))
+        .alpha(if (progress.value < 1f) 1f else 0f),
+  ) {
+    val bandHeight = size.height * 0.24f
+    val y = (size.height + bandHeight) * progress.value - bandHeight
+    drawRect(
+      brush =
+        Brush.verticalGradient(
+          colors =
+            listOf(
+              Color.Transparent,
+              SkyAccent.copy(alpha = 0.18f),
+              Color.White.copy(alpha = 0.62f),
+              SkyAccent.copy(alpha = 0.18f),
+              Color.Transparent,
+            ),
+          startY = y,
+          endY = y + bandHeight,
+        ),
+      topLeft = Offset(0f, y),
+      size = Size(size.width, bandHeight),
+    )
   }
 }
 
@@ -659,7 +809,7 @@ private fun ThirdPanel(pass: BoardingPass, progress: Float) {
       PlainTicketField("Passenger", pass.passengerName.uppercase(), highlight = true)
       PlainTicketField("Seat", pass.seat, highlight = true)
     }
-    MiniQrCode(Modifier.size(86.dp))
+    MiniQrCode(content = pass.code, modifier = Modifier.size(86.dp))
   }
 }
 
@@ -758,26 +908,27 @@ private fun StatusChip(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MiniQrCode(modifier: Modifier = Modifier) {
-  StaticCode(
+private fun MiniQrCode(content: String, modifier: Modifier = Modifier) {
+  RealQrCode(
+    content = content,
     modifier =
       modifier
         .clip(RoundedCornerShape(12.dp))
         .background(Color.White)
         .border(1.dp, Color(0xFFDDE4EF), RoundedCornerShape(12.dp))
         .padding(7.dp),
-    cells = 7,
   )
 }
 
 @Composable
-private fun AnimatedQRCode(modifier: Modifier = Modifier, cells: Int) {
+private fun AnimatedQRCode(content: String, modifier: Modifier = Modifier) {
   val progress = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
     progress.snapTo(0f)
     progress.animateTo(1f, tween(620, easing = FastOutSlowInEasing))
   }
-  StaticCode(
+  RealQrCode(
+    content = content,
     modifier =
       modifier
         .aspectRatio(1f)
@@ -790,24 +941,24 @@ private fun AnimatedQRCode(modifier: Modifier = Modifier, cells: Int) {
           scaleX = 0.92f + progress.value * 0.08f
           scaleY = 0.92f + progress.value * 0.08f
         },
-    cells = cells,
     visibleCells = progress.value,
   )
 }
 
 @Composable
-private fun StaticCode(modifier: Modifier, cells: Int, visibleCells: Float = 1f) {
+private fun RealQrCode(content: String, modifier: Modifier, visibleCells: Float = 1f) {
+  val matrix = remember(content) { QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 29, 29) }
   Canvas(modifier = modifier) {
-    val gap = size.width / cells
-    for (row in 0 until cells) {
-      for (col in 0 until cells) {
-        val active = ((row * 11 + col * 7 + row * col) % 4 != 0) || row in 0..1 || col in 0..1
-        if (active && (row * cells + col) < (cells * cells * visibleCells).roundToInt()) {
+    val dimension = matrix.width
+    val gap = size.width / dimension
+    for (row in 0 until dimension) {
+      for (col in 0 until dimension) {
+        if (matrix[col, row] && (row * dimension + col) < (dimension * dimension * visibleCells).roundToInt()) {
           drawRoundRect(
-            color = if ((row + col) % 5 == 0) SkyAccent else Ink,
-            topLeft = Offset(col * gap + gap * 0.16f, row * gap + gap * 0.16f),
-            size = Size(gap * 0.68f, gap * 0.68f),
-            cornerRadius = CornerRadius(3f),
+            color = Ink,
+            topLeft = Offset(col * gap, row * gap),
+            size = Size(gap, gap),
+            cornerRadius = CornerRadius(1.6f),
           )
         }
       }
@@ -870,3 +1021,21 @@ private fun physicalEase(value: Float): Float {
 }
 
 private fun revealContent(progress: Float): Float = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
+
+private fun vibrateShort(context: Context) {
+  val vibrator =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+      manager.defaultVibrator
+    } else {
+      @Suppress("DEPRECATION")
+      context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
+  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    vibrator.vibrate(VibrationEffect.createOneShot(42, VibrationEffect.DEFAULT_AMPLITUDE))
+  } else {
+    @Suppress("DEPRECATION")
+    vibrator.vibrate(42)
+  }
+}

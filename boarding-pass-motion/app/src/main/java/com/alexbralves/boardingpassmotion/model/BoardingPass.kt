@@ -1,6 +1,7 @@
 package com.alexbralves.boardingpassmotion.model
 
 data class BoardingPass(
+  val code: String = "TICKET_DEMO_001",
   val airline: String = "Jetpack Airlines",
   val passengerName: String = "Rich Miner",
   val originCode: String = "GRU",

@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -8,10 +9,22 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "com.alexbralves.boardingpassmotion"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        val supabaseUrl =
+          providers.gradleProperty("SUPABASE_URL")
+            .orElse(providers.environmentVariable("SUPABASE_URL"))
+            .orElse("")
+        val supabaseAnonKey =
+          providers.gradleProperty("SUPABASE_ANON_KEY")
+            .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
+            .orElse("")
+
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.get()}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.get()}\"")
     }
 
     buildTypes {
@@ -27,7 +40,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 
@@ -56,6 +69,13 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
+
+  // Supabase Realtime
+  implementation(platform(libs.supabase.bom))
+  implementation(libs.supabase.postgrest)
+  implementation(libs.supabase.realtime)
+  implementation(libs.ktor.client.okhttp)
+  implementation(libs.zxing.core)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests

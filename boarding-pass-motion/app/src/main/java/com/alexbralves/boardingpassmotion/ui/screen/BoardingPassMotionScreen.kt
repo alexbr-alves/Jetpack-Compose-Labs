@@ -5,11 +5,24 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -82,6 +95,14 @@ private enum class TicketValidationState {
   Boarded,
 }
 
+private enum class FlightCapsuleState {
+  Idle,
+  QrReady,
+  Scanning,
+  Success,
+  GateCountdown,
+}
+
 @Composable
 fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
   val context = LocalContext.current
@@ -96,7 +117,18 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
   var running by remember { mutableStateOf(false) }
   var validationState by remember { mutableStateOf(TicketValidationState.WaitingForScan) }
   var lastScanCount by remember { mutableStateOf<Int?>(null) }
+  var gateCountdownStarted by remember { mutableStateOf(false) }
+  var gateCountdownIntroVisible by remember { mutableStateOf(false) }
+  var gateCountdownSeconds by remember { mutableStateOf(23 * 60 + 20) }
   val scope = rememberCoroutineScope()
+  val flightCapsuleState =
+    when {
+      gateCountdownStarted -> FlightCapsuleState.GateCountdown
+      validationState == TicketValidationState.Scanning -> FlightCapsuleState.Scanning
+      validationState == TicketValidationState.Boarded -> FlightCapsuleState.Success
+      cardFlip.value > 0.5f -> FlightCapsuleState.QrReady
+      else -> FlightCapsuleState.Idle
+    }
 
   suspend fun expandTicket() {
     running = true
@@ -163,9 +195,27 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
   LaunchedEffect(validationState) {
     if (validationState == TicketValidationState.Boarded) {
       delay(2_000)
+      gateCountdownStarted = true
+      gateCountdownIntroVisible = true
       if (!running && open) {
         foldTicket()
       }
+    }
+  }
+
+  LaunchedEffect(gateCountdownStarted) {
+    if (!gateCountdownStarted) return@LaunchedEffect
+
+    while (gateCountdownSeconds > 0) {
+      delay(1_000)
+      gateCountdownSeconds = (gateCountdownSeconds - 1).coerceAtLeast(0)
+    }
+  }
+
+  LaunchedEffect(gateCountdownStarted) {
+    if (gateCountdownStarted) {
+      delay(2_000)
+      gateCountdownIntroVisible = false
     }
   }
 
@@ -181,16 +231,30 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
           ),
         ),
   ) {
+    FlightCapsule(
+      state = flightCapsuleState,
+      countdownSeconds = gateCountdownSeconds,
+      countdownIntroVisible = gateCountdownIntroVisible,
+      modifier =
+        Modifier
+          .align(Alignment.TopCenter)
+          .statusBarsPadding()
+          .padding(horizontal = 18.dp, vertical = 12.dp)
+          .zIndex(50f),
+    )
     Box(
       modifier =
         Modifier
           .fillMaxSize()
           .statusBarsPadding()
           .navigationBarsPadding()
-          .padding(horizontal = 22.dp),
-      contentAlignment = Alignment.Center,
+          .padding(horizontal = 22.dp)
+          .padding(top = 74.dp, bottom = 18.dp),
     ) {
-      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+      Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
         FoldingBoardingPass(
           pass = pass,
           secondProgress = secondFold.value,
@@ -212,7 +276,7 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
             },
         )
         if (secondFold.value > 0.98f && thirdFold.value > 0.98f) {
-          Spacer(Modifier.height(18.dp))
+          Spacer(Modifier.height(14.dp))
           QrSideButton(
             showingQr = cardFlip.value > 0.5f,
             onClick = {
@@ -228,8 +292,478 @@ fun BoardingPassMotionScreen(autoExpand: Boolean = false) {
             },
           )
         }
+        Spacer(Modifier.height(24.dp))
+        TicketsArchiveDivider()
+        Spacer(Modifier.height(14.dp))
+        PastTicketsSection(Modifier.fillMaxWidth())
       }
     }
+  }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+private fun FlightCapsule(
+  state: FlightCapsuleState,
+  countdownSeconds: Int,
+  countdownIntroVisible: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val capsuleWidth =
+    when (state) {
+      FlightCapsuleState.Idle -> 126.dp
+      FlightCapsuleState.QrReady -> 154.dp
+      FlightCapsuleState.Scanning -> 120.dp
+      FlightCapsuleState.Success -> 144.dp
+      FlightCapsuleState.GateCountdown ->
+        when {
+          countdownSeconds == 0 -> 156.dp
+          countdownIntroVisible -> 170.dp
+          else -> 120.dp
+        }
+    }
+  val capsuleHeight =
+    if (state == FlightCapsuleState.GateCountdown && countdownIntroVisible && countdownSeconds > 0) {
+      48.dp
+    } else {
+      44.dp
+    }
+
+  Box(
+    modifier =
+      modifier
+        .width(capsuleWidth)
+        .height(capsuleHeight)
+        .shadow(16.dp, RoundedCornerShape(999.dp), clip = false)
+        .clip(RoundedCornerShape(999.dp))
+        .background(
+          Brush.linearGradient(
+            colors =
+              listOf(
+                Color(0xFF111827).copy(alpha = 0.96f),
+                Color(0xFF020617).copy(alpha = 0.96f),
+              ),
+          ),
+        )
+        .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(999.dp))
+        .animateContentSize(
+          animationSpec =
+            spring(
+              dampingRatio = 0.84f,
+              stiffness = Spring.StiffnessMediumLow,
+            ),
+        ),
+    contentAlignment = Alignment.Center,
+  ) {
+    AnimatedContent(
+      targetState = state,
+      transitionSpec = {
+        (fadeIn(tween(180, easing = FastOutSlowInEasing)) +
+          slideInVertically(
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.88f),
+          ) { it / 3 })
+          .togetherWith(
+            fadeOut(tween(130, easing = FastOutSlowInEasing)) +
+              slideOutVertically(tween(130, easing = FastOutSlowInEasing)) { -it / 4 },
+          )
+          .using(SizeTransform(clip = false))
+      },
+      label = "FlightCapsuleContent",
+    ) { targetState ->
+      when (targetState) {
+        FlightCapsuleState.Idle -> FlightCapsuleLabel(icon = FlightCapsuleIcon.Plane, text = "AZ284")
+        FlightCapsuleState.QrReady -> FlightCapsuleLabel(icon = FlightCapsuleIcon.Ticket, text = "QR Ready")
+        FlightCapsuleState.Scanning -> FlightCapsuleLoading()
+        FlightCapsuleState.Success -> FlightCapsuleSuccess()
+        FlightCapsuleState.GateCountdown ->
+          FlightCapsuleCountdown(
+            seconds = countdownSeconds,
+            introVisible = countdownIntroVisible,
+          )
+      }
+    }
+  }
+}
+
+@Composable
+private fun FlightCapsuleLabel(icon: FlightCapsuleIcon, text: String) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(7.dp),
+  ) {
+    FlightCapsuleIcon(icon)
+    Text(
+      text,
+      style = MaterialTheme.typography.labelLarge,
+      color = Color.White,
+      fontWeight = FontWeight.Black,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+  }
+}
+
+private enum class FlightCapsuleIcon {
+  Plane,
+  Ticket,
+}
+
+@Composable
+private fun FlightCapsuleIcon(icon: FlightCapsuleIcon) {
+  when (icon) {
+    FlightCapsuleIcon.Plane ->
+      PlaneMark(
+        modifier = Modifier.size(18.dp),
+        color = Color.White,
+      )
+    FlightCapsuleIcon.Ticket ->
+      TicketMark(
+        modifier = Modifier.size(18.dp),
+        color = Color.White,
+      )
+  }
+}
+
+@Composable
+private fun PlaneMark(
+  modifier: Modifier = Modifier,
+  color: Color = Color.White,
+  rotation: Float = -16f,
+) {
+  Canvas(
+    modifier =
+      modifier.graphicsLayer {
+        rotationZ = rotation
+      },
+  ) {
+    val w = size.width
+    val h = size.height
+    val body = androidx.compose.ui.graphics.Path().apply {
+      moveTo(w * 0.08f, h * 0.52f)
+      lineTo(w * 0.92f, h * 0.42f)
+      quadraticTo(w * 1.02f, h * 0.50f, w * 0.92f, h * 0.58f)
+      lineTo(w * 0.08f, h * 0.48f)
+      close()
+    }
+    val wingTop = androidx.compose.ui.graphics.Path().apply {
+      moveTo(w * 0.42f, h * 0.46f)
+      lineTo(w * 0.14f, h * 0.12f)
+      lineTo(w * 0.31f, h * 0.10f)
+      lineTo(w * 0.64f, h * 0.44f)
+      close()
+    }
+    val wingBottom = androidx.compose.ui.graphics.Path().apply {
+      moveTo(w * 0.44f, h * 0.54f)
+      lineTo(w * 0.18f, h * 0.88f)
+      lineTo(w * 0.35f, h * 0.90f)
+      lineTo(w * 0.66f, h * 0.56f)
+      close()
+    }
+    val tail = androidx.compose.ui.graphics.Path().apply {
+      moveTo(w * 0.15f, h * 0.50f)
+      lineTo(w * 0.02f, h * 0.30f)
+      lineTo(w * 0.14f, h * 0.28f)
+      lineTo(w * 0.28f, h * 0.49f)
+      close()
+    }
+    drawPath(wingTop, color.copy(alpha = 0.94f))
+    drawPath(wingBottom, color.copy(alpha = 0.94f))
+    drawPath(tail, color.copy(alpha = 0.88f))
+    drawPath(body, color)
+  }
+}
+
+@Composable
+private fun TicketMark(
+  modifier: Modifier = Modifier,
+  color: Color = Color.White,
+) {
+  Canvas(modifier) {
+    val stroke = 1.6.dp.toPx()
+    val corner = 4.dp.toPx()
+    drawRoundRect(
+      color = color,
+      topLeft = Offset(size.width * 0.12f, size.height * 0.22f),
+      size = Size(size.width * 0.76f, size.height * 0.56f),
+      cornerRadius = CornerRadius(corner, corner),
+      style = Stroke(width = stroke),
+    )
+    drawCircle(
+      color = Color(0xFF07101F),
+      radius = size.height * 0.11f,
+      center = Offset(size.width * 0.12f, size.height * 0.50f),
+    )
+    drawCircle(
+      color = Color(0xFF07101F),
+      radius = size.height * 0.11f,
+      center = Offset(size.width * 0.88f, size.height * 0.50f),
+    )
+  }
+}
+
+@Composable
+private fun FlightCapsuleLoading() {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    repeat(3) { index ->
+      FlightCapsulePulseDot(index)
+    }
+  }
+}
+
+@Composable
+private fun FlightCapsulePulseDot(index: Int) {
+  val transition = rememberInfiniteTransition(label = "FlightCapsuleDot$index")
+  val pulse by transition.animateFloat(
+    initialValue = 0.35f,
+    targetValue = 1f,
+    animationSpec =
+      infiniteRepeatable(
+        animation = tween(640, delayMillis = index * 120, easing = FastOutSlowInEasing),
+        repeatMode = RepeatMode.Reverse,
+      ),
+    label = "FlightCapsuleDotPulse$index",
+  )
+  Box(
+    modifier =
+      Modifier
+        .size(7.dp)
+        .graphicsLayer {
+          alpha = 0.42f + pulse * 0.58f
+          scaleX = 0.72f + pulse * 0.28f
+          scaleY = 0.72f + pulse * 0.28f
+        }
+        .clip(CircleShape)
+        .background(Color.White),
+  )
+}
+
+@Composable
+private fun FlightCapsuleSuccess() {
+  val success = remember { Animatable(0f) }
+  LaunchedEffect(Unit) {
+    success.snapTo(0f)
+    success.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.58f))
+  }
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(7.dp),
+  ) {
+    Text(
+      "✓",
+      style = MaterialTheme.typography.titleMedium,
+      color = Color(0xFF6EE7B7),
+      fontWeight = FontWeight.Black,
+      modifier =
+        Modifier.graphicsLayer {
+          alpha = success.value
+          scaleX = 0.72f + success.value * 0.28f
+          scaleY = 0.72f + success.value * 0.28f
+        },
+    )
+    Text(
+      "Boarded",
+      style = MaterialTheme.typography.labelLarge,
+      color = Color.White,
+      fontWeight = FontWeight.Black,
+      modifier =
+        Modifier.graphicsLayer {
+          alpha = success.value
+          translationY = (1f - success.value) * 4f * density
+        },
+    )
+  }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+private fun FlightCapsuleCountdown(seconds: Int, introVisible: Boolean) {
+  if (seconds == 0) {
+    Text(
+      "Gate Closed",
+      style = MaterialTheme.typography.labelLarge,
+      color = Color.White,
+      fontWeight = FontWeight.Black,
+      maxLines = 1,
+    )
+    return
+  }
+
+  Column(
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
+  ) {
+    AnimatedContent(
+      targetState = introVisible,
+      transitionSpec = {
+        (fadeIn(tween(180, easing = FastOutSlowInEasing)) +
+          slideInVertically(tween(180, easing = FastOutSlowInEasing)) { it / 2 })
+          .togetherWith(
+            fadeOut(tween(180, easing = FastOutSlowInEasing)) +
+              slideOutVertically(tween(180, easing = FastOutSlowInEasing)) { -it / 2 },
+          )
+      },
+      label = "GateCountdownIntro",
+    ) { visible ->
+      if (visible) {
+        Text(
+          "Gate closes in",
+          style = MaterialTheme.typography.labelSmall,
+          color = Color.White.copy(alpha = 0.58f),
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+        )
+      }
+    }
+    AnimatedContent(
+      targetState = formatGateCountdown(seconds),
+      transitionSpec = {
+        (fadeIn(tween(120, easing = FastOutSlowInEasing)) +
+          slideInVertically(tween(120, easing = FastOutSlowInEasing)) { it / 2 })
+          .togetherWith(
+            fadeOut(tween(110, easing = FastOutSlowInEasing)) +
+              slideOutVertically(tween(110, easing = FastOutSlowInEasing)) { -it / 2 },
+          )
+      },
+      label = "GateCountdownTime",
+    ) { time ->
+      Text(
+        time,
+        style = if (introVisible) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleMedium,
+        color = Color.White,
+        fontWeight = FontWeight.Black,
+        maxLines = 1,
+      )
+    }
+  }
+}
+
+@Composable
+private fun TicketsArchiveDivider() {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Canvas(Modifier.weight(1f).height(1.dp)) {
+      drawLine(
+        color = Color.White.copy(alpha = 0.16f),
+        start = Offset(0f, 0f),
+        end = Offset(size.width, 0f),
+        strokeWidth = 1.2f,
+      )
+    }
+    Text(
+      text = "Past tickets",
+      style = MaterialTheme.typography.labelMedium,
+      color = Color.White.copy(alpha = 0.56f),
+      fontWeight = FontWeight.Bold,
+    )
+    Canvas(Modifier.weight(1f).height(1.dp)) {
+      drawLine(
+        color = Color.White.copy(alpha = 0.16f),
+        start = Offset(0f, 0f),
+        end = Offset(size.width, 0f),
+        strokeWidth = 1.2f,
+      )
+    }
+  }
+}
+
+@Composable
+private fun PastTicketsSection(modifier: Modifier = Modifier) {
+  Column(
+    modifier = modifier,
+    verticalArrangement = Arrangement.spacedBy(14.dp),
+  ) {
+    PastTicketCard(
+      airline = "JETPACK AIRLINES",
+      originCode = "SFO",
+      originCity = "SAN FRANCISCO",
+      originTime = "08:30",
+      destinationCode = "NRT",
+      destinationCity = "TOKYO",
+      destinationTime = "14:20",
+    )
+    PastTicketCard(
+      airline = "COMPOSE AIR",
+      originCode = "LHR",
+      originCity = "LONDON",
+      originTime = "17:10",
+      destinationCode = "GRU",
+      destinationCity = "SAO PAULO",
+      destinationTime = "05:45",
+    )
+  }
+}
+
+@Composable
+private fun PastTicketCard(
+  airline: String,
+  originCode: String,
+  originCity: String,
+  originTime: String,
+  destinationCode: String,
+  destinationCity: String,
+  destinationTime: String,
+) {
+  Box(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .height(168.dp)
+        .clip(RoundedCornerShape(22.dp))
+        .background(
+          Brush.verticalGradient(
+            colors =
+              listOf(
+                Color(0xFF0B63C4).copy(alpha = 0.50f),
+                Color(0xFF064B95).copy(alpha = 0.50f),
+              ),
+          ),
+        )
+        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(22.dp))
+        .padding(horizontal = 22.dp, vertical = 12.dp),
+  ) {
+    Column(
+      modifier = Modifier.fillMaxSize(),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text(airline, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.Black)
+        Text("PAST", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.42f), fontWeight = FontWeight.Black)
+      }
+      HeroRouteGraphic(Modifier.fillMaxWidth().height(48.dp).alpha(0.50f))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        PastTicketAirport(originCode, originCity, originTime, Alignment.Start)
+        PastTicketAirport(destinationCode, destinationCity, destinationTime, Alignment.End)
+      }
+    }
+  }
+}
+
+@Composable
+private fun PastTicketAirport(
+  code: String,
+  city: String,
+  time: String,
+  alignment: Alignment.Horizontal,
+) {
+  Column(horizontalAlignment = alignment) {
+    Text(code, style = MaterialTheme.typography.displaySmall, color = Color.White.copy(alpha = 0.66f), fontWeight = FontWeight.Black)
+    Text(city, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.54f), fontWeight = FontWeight.Bold)
+    Text(time, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.38f))
   }
 }
 
@@ -725,25 +1259,32 @@ private fun HeroAirport(code: String, city: String, time: String, alignment: Ali
 
 @Composable
 private fun HeroRouteGraphic(modifier: Modifier = Modifier) {
-  Canvas(modifier) {
-    val start = Offset(size.width * 0.18f, size.height * 0.82f)
-    val end = Offset(size.width * 0.82f, size.height * 0.82f)
-    val control = Offset(size.width * 0.5f, size.height * 0.02f)
-    val path = androidx.compose.ui.graphics.Path().apply {
-      moveTo(start.x, start.y)
-      quadraticTo(control.x, control.y, end.x, end.y)
+  Box(modifier) {
+    Canvas(Modifier.fillMaxSize()) {
+      val start = Offset(size.width * 0.18f, size.height * 0.82f)
+      val end = Offset(size.width * 0.82f, size.height * 0.82f)
+      val control = Offset(size.width * 0.5f, size.height * 0.02f)
+      val path = androidx.compose.ui.graphics.Path().apply {
+        moveTo(start.x, start.y)
+        quadraticTo(control.x, control.y, end.x, end.y)
+      }
+      drawPath(
+        path = path,
+        color = Color.White.copy(alpha = 0.72f),
+        style = Stroke(width = 1.4f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 7f))),
+      )
+      drawCircle(Color.White, radius = 5.2f, center = start)
+      drawCircle(Color.White, radius = 5.2f, center = end)
     }
-    drawPath(
-      path = path,
-      color = Color.White.copy(alpha = 0.72f),
-      style = Stroke(width = 1.4f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 7f))),
+    PlaneMark(
+      modifier =
+        Modifier
+          .size(34.dp)
+          .align(Alignment.TopCenter)
+          .offset(y = 8.dp),
+      color = Color.White,
+      rotation = -18f,
     )
-    drawCircle(Color.White, radius = 5.2f, center = start)
-    drawCircle(Color.White, radius = 5.2f, center = end)
-    val planeCenter = Offset(size.width * 0.47f, size.height * 0.35f)
-    drawLine(Color.White, Offset(planeCenter.x - 24f, planeCenter.y + 4f), Offset(planeCenter.x + 24f, planeCenter.y - 10f), strokeWidth = 8f)
-    drawLine(Color.White, Offset(planeCenter.x - 4f, planeCenter.y - 2f), Offset(planeCenter.x - 24f, planeCenter.y - 18f), strokeWidth = 6f)
-    drawLine(Color.White, Offset(planeCenter.x + 4f, planeCenter.y - 4f), Offset(planeCenter.x - 4f, planeCenter.y + 18f), strokeWidth = 5f)
   }
 }
 
@@ -1021,6 +1562,13 @@ private fun physicalEase(value: Float): Float {
 }
 
 private fun revealContent(progress: Float): Float = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
+
+private fun formatGateCountdown(seconds: Int): String {
+  val safeSeconds = seconds.coerceAtLeast(0)
+  val minutes = safeSeconds / 60
+  val remainingSeconds = safeSeconds % 60
+  return "${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}"
+}
 
 private fun vibrateShort(context: Context) {
   val vibrator =

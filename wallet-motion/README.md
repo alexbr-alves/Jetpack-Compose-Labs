@@ -1,3 +1,4 @@
+
 # Wallet Motion
 
 Experimento de Motion Design em Jetpack Compose focado em uma carteira de cartões com sensação física.
@@ -5,18 +6,7 @@ Experimento de Motion Design em Jetpack Compose focado em uma carteira de cartõ
 A experiência simula um stack de cartões bancários que responde a gestos, profundidade, rotação, elevação e transições com molas. O objetivo é explorar uma interface de wallet que pareça tátil, fluida e diretamente manipulável.
 
 ## Demonstração
-
-> Adicione o vídeo final aqui.
-
-<!--
-Exemplo:
-
-https://github.com/user-attachments/assets/seu-video-id
-
-ou:
-
-<video src="docs/demo.mp4" controls width="360"></video>
--->
+https://github.com/user-attachments/assets/c1e28509-1f1d-4110-b378-1c33d657a634
 
 ## Destaques
 

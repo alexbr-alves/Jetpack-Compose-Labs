@@ -1,47 +1,46 @@
 # Boarding Pass Motion
 
-Jetpack Compose motion experiment focused on a single polished boarding pass interaction.
+Experimento de Motion Design em Jetpack Compose focado em uma única interação refinada de boarding pass.
 
-The experience simulates a folded physical ticket opening in three connected sections, flipping to a QR-code back side, reacting to Supabase Realtime validation, and then continuing as a live flight capsule with a gate countdown.
+A experiência simula um ticket físico dobrado que se abre em três partes conectadas, gira para revelar o verso com QR Code, reage a uma validação via Supabase Realtime e continua acompanhando o voo por meio de uma cápsula com contagem regressiva do portão.
 
-## Demo
+## Demonstração
 
 https://github.com/user-attachments/assets/30995f03-1697-41ce-853e-d36940b3aefb
 
+## Destaques
 
-## Highlights
+- Animação física em três dobras usando `graphicsLayer`, `rotationX`, pivôs de transformação, sombras e perspectiva.
+- Movimento sequencial de abertura e fechamento, sem atalhos de expansão de card.
+- Verso com QR Code integrado à validação por Supabase Realtime.
+- Feedback tátil e animação luminosa de leitura quando o ticket é escaneado.
+- `FlightCapsule` minimalista sincronizada com o estado do ticket.
+- Contagem regressiva para fechamento do portão após aprovação do embarque.
+- Seção de tickets antigos com a mesma linguagem visual do boarding pass ativo.
 
-- Three-part physical fold animation using `graphicsLayer`, `rotationX`, transform origins, shadows, and perspective.
-- Sequential open and close motion, avoiding card expansion shortcuts.
-- QR-code back side with Supabase Realtime validation.
-- Haptic feedback and scan-light animation when the ticket is read.
-- Minimal `FlightCapsule` synced with the ticket state.
-- Gate closing countdown after boarding approval.
-- Past tickets section styled with the same boarding-pass language.
+## Fluxo Realtime
 
-## Realtime Flow
-
-The demo listens to Supabase Realtime updates from:
+A demonstração escuta atualizações do Supabase Realtime em:
 
 ```text
 public.tickets
 ```
 
-The active demo ticket is:
+O ticket ativo da demonstração é:
 
 ```text
 TICKET_DEMO_001
 ```
 
-When `scan_count` increases, the app treats it as a successful scan and plays the validation sequence.
+Quando `scan_count` aumenta, o app interpreta o evento como um scan bem-sucedido e executa a sequência de validação.
 
-## Run
+## Executar
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 
-Install on a connected device:
+Instale em um dispositivo conectado:
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -52,4 +51,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - Kotlin
 - Jetpack Compose
 - Supabase Kotlin SDK
-- ZXing QR generation
+- Geração de QR Code com ZXing

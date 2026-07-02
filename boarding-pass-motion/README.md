@@ -6,17 +6,8 @@ The experience simulates a folded physical ticket opening in three connected sec
 
 ## Demo
 
-> Add the final video here.
+https://github.com/user-attachments/assets/30995f03-1697-41ce-853e-d36940b3aefb
 
-<!--
-Example:
-
-https://github.com/user-attachments/assets/your-video-id
-
-or:
-
-<video src="docs/demo.mp4" controls width="360"></video>
--->
 
 ## Highlights
 

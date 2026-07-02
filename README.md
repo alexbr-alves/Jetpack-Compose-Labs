@@ -21,6 +21,7 @@ This repository is a playground where ideas become reusable interactions. Each p
 | Project | Description | Status |
 |---------|-------------|--------|
 | 🚀 wallet-motion | Premium wallet interactions, gestures and animations | ✅ Completed |
+| ✈️ boarding-pass-motion | Physical tri-fold boarding pass reveal with 3D fold motion | ✅ Completed |
 | ⏳ More coming soon... | Motion, Graphics, Canvas, Shaders and more | 🚧 |
 
 ---

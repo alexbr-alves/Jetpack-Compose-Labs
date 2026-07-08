@@ -1,59 +1,79 @@
 # Jetpack Compose Labs 🧪
 
-A curated collection of advanced **Jetpack Compose** experiments focused on motion design, animations, graphics, gestures, and modern Android UI.
+Coleção curada de experimentos avançados em **Jetpack Compose** focados em motion design, animações, gráficos, gestos e interfaces Android modernas.
 
-This repository is a playground where ideas become reusable interactions. Each project explores a specific aspect of Compose with production-quality code, clean architecture, and smooth user experiences.
-
----
-
-## 🎯 Goals
-
-- Explore advanced Jetpack Compose capabilities
-- Build reusable interaction patterns
-- Experiment with Motion Design and Material 3 Expressive
-- Showcase modern Android UI techniques
-- Share high-quality implementations with the community
+Este repositório é um laboratório onde ideias viram interações reutilizáveis. Cada projeto explora um aspecto específico do Compose com código de qualidade, arquitetura simples e experiências fluidas.
 
 ---
 
-## 📦 Projects
+## 🎯 Objetivos
 
-| Project | Description | Status |
+- Explorar recursos avançados do Jetpack Compose.
+- Construir padrões reutilizáveis de interação.
+- Experimentar Motion Design e Material 3 Expressive.
+- Demonstrar técnicas modernas de UI Android.
+- Compartilhar implementações bem acabadas com a comunidade.
+
+---
+
+## 📦 Projetos
+
+| Projeto | Descrição | Status |
 |---------|-------------|--------|
-| 🚀 wallet-motion | Premium wallet interactions, gestures and animations | ✅ Completed |
-| ✈️ boarding-pass-motion | Physical tri-fold boarding pass reveal with 3D fold motion | ✅ Completed |
-| ⏳ More coming soon... | Motion, Graphics, Canvas, Shaders and more | 🚧 |
+| 🚀 [wallet-motion](wallet-motion) | Carteira de cartões com gestos, profundidade, flip e transições físicas. | ✅ Completo |
+| ✈️ [boarding-pass-motion](boarding-pass-motion) | Boarding pass físico com dobra tripla, verso com QR Code e validação Realtime. | ✅ Completo |
+| 🎧 [music-play](music-play) | Player musical neumórfico com vinil, troca de faixas, álbuns e playlists animadas. | ✅ Completo |
+| ⏳ Mais em breve... | Motion, gráficos, Canvas, shaders e novas interações. | 🚧 |
 
 ---
 
-## 🔬 Topics Covered
+## 🔬 Tópicos
 
 - Motion Design
 - Material 3 Expressive
-- Advanced Animations
-- Gesture Handling
-- Physics-inspired Interactions
+- Animações avançadas
+- Gestos
+- Interações inspiradas em física
 - Canvas
 - GraphicsLayer
-- Custom Layouts
-- Performance Optimization
-- UI Architecture
-- State Management
-- Micro Interactions
+- Layouts customizados
+- Otimização de performance
+- Arquitetura de UI
+- Gerenciamento de estado
+- Microinterações
 
 ---
 
-## 📚 Why this repository?
+## ▶️ Executar
 
-Most Compose samples demonstrate APIs.
+Cada lab é um projeto Android independente. Entre na pasta do experimento e gere o APK de debug:
 
-**Jetpack Compose Labs** focuses on demonstrating **experiences**.
+```bash
+cd music-play
+./gradlew :app:assembleDebug
+```
 
-The goal isn't to build complete applications, but to create polished, reusable UI interactions that feel ready for production.
+Instale em um dispositivo conectado:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Troque `music-play` por `wallet-motion` ou `boarding-pass-motion` para executar os outros labs.
 
 ---
 
-## 🛠 Tech Stack
+## 📚 Por que este repositório?
+
+A maioria dos exemplos de Compose demonstra APIs.
+
+**Jetpack Compose Labs** foca em demonstrar **experiências**.
+
+O objetivo não é criar aplicativos completos, mas sim interações polidas, reutilizáveis e com sensação de produto.
+
+---
+
+## 🛠 Stack
 
 - Kotlin
 - Jetpack Compose
@@ -65,8 +85,8 @@ The goal isn't to build complete applications, but to create polished, reusable 
 
 ---
 
-## 🤝 Contributions
+## 🤝 Contribuições
 
-Ideas, feedback and suggestions are always welcome.
+Ideias, feedbacks e sugestões são sempre bem-vindos.
 
-If you have an interesting interaction or animation you'd like to see implemented, feel free to open an issue or start a discussion.
+Se houver alguma interação ou animação interessante que você gostaria de ver implementada, fique à vontade para abrir uma issue ou iniciar uma discussão.

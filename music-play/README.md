@@ -6,7 +6,7 @@ A experiência simula um player tátil com vinil animado, troca de faixas, folha
 
 ## Demonstração
 
-![Music Play](screenshots/xiaomi-current.png)
+https://github.com/user-attachments/assets/4abe0423-aac2-4fd8-a001-6090819cb5b6
 
 ## Destaques
 
